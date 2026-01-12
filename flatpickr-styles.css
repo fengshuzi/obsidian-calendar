@@ -1,0 +1,201 @@
+/* Flatpickr Base Styles - Adapted for Obsidian */
+.flatpickr-calendar {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 0;
+    font-size: 14px;
+    line-height: 24px;
+    width: 307px;
+    box-sizing: border-box;
+}
+
+.flatpickr-calendar.inline {
+    display: block;
+    position: relative;
+}
+
+.flatpickr-months {
+    display: flex;
+    padding: 12px;
+}
+
+.flatpickr-month {
+    background: transparent;
+    color: var(--text-normal);
+    height: 34px;
+    line-height: 1;
+    text-align: center;
+    position: relative;
+    flex: 1;
+}
+
+.flatpickr-current-month {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-normal);
+    padding: 7px 0;
+    text-align: center;
+}
+
+.flatpickr-prev-month,
+.flatpickr-next-month {
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    height: 34px;
+    padding: 10px;
+    color: var(--text-muted);
+    fill: var(--text-muted);
+}
+
+.flatpickr-prev-month {
+    left: 0;
+}
+
+.flatpickr-next-month {
+    right: 0;
+}
+
+.flatpickr-prev-month:hover,
+.flatpickr-next-month:hover {
+    color: var(--text-normal);
+}
+
+.flatpickr-weekdays {
+    background: transparent;
+    text-align: center;
+    overflow: hidden;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+}
+
+.flatpickr-weekday {
+    cursor: default;
+    font-size: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    line-height: 1;
+    margin: 0;
+    text-align: center;
+    display: block;
+    flex: 1;
+    font-weight: 600;
+}
+
+.flatpickr-days {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    width: 307px;
+    padding: 0 12px 12px;
+}
+
+.dayContainer {
+    padding: 0;
+    outline: 0;
+    text-align: left;
+    width: 307px;
+    min-width: 307px;
+    max-width: 307px;
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+
+.flatpickr-day {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    box-sizing: border-box;
+    color: var(--text-normal);
+    cursor: pointer;
+    font-weight: 400;
+    width: 14.2857%;
+    flex-basis: 14.2857%;
+    max-width: 39px;
+    height: 39px;
+    line-height: 39px;
+    margin: 0;
+    display: inline-block;
+    position: relative;
+    justify-content: center;
+    text-align: center;
+}
+
+.flatpickr-day:hover {
+    background: var(--background-modifier-hover);
+    border-color: var(--background-modifier-hover);
+}
+
+.flatpickr-day.today {
+    border-color: var(--interactive-accent);
+    color: var(--interactive-accent);
+}
+
+.flatpickr-day.today:hover {
+    border-color: var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.flatpickr-day.selected {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+    color: var(--text-faint);
+}
+
+.flatpickr-time {
+    text-align: center;
+    outline: 0;
+    display: flex;
+    height: 40px;
+    line-height: 40px;
+    max-height: 40px;
+    box-sizing: border-box;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.flatpickr-time input {
+    background: transparent;
+    border: 0;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    height: inherit;
+    line-height: inherit;
+    color: var(--text-normal);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.flatpickr-time .flatpickr-time-separator {
+    height: inherit;
+    line-height: inherit;
+    color: var(--text-normal);
+    font-weight: bold;
+    width: 2%;
+    align-self: center;
+}
+
+.flatpickr-time .numInputWrapper {
+    flex: 1;
+    width: 40%;
+    height: 40px;
+}
+
+.flatpickr-time input:hover,
+.flatpickr-time input:focus {
+    background: var(--background-modifier-hover);
+}
