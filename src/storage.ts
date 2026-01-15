@@ -1,4 +1,12 @@
 import { exec } from "child_process";
+
+// 辅助函数：格式化本地日期为 YYYY-MM-DD（避免 UTC 时区问题）
+function formatLocalDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
 import { promisify } from "util";
 import { CalendarEvent } from "./types";
 import { Notice, Platform } from "obsidian";
@@ -167,15 +175,15 @@ export class CalendarStorage {
 
     private getDayLabel(dateKey: string): string {
         const now = new Date();
-        const todayKey = this.getDateKey(now.toISOString());
+        const todayKey = this.getDateKey(formatLocalDate(now));
 
         const tomorrow = new Date(now);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowKey = this.getDateKey(tomorrow.toISOString());
+        const tomorrowKey = this.getDateKey(formatLocalDate(tomorrow));
 
         const dayAfter = new Date(now);
         dayAfter.setDate(dayAfter.getDate() + 2);
-        const dayAfterKey = this.getDateKey(dayAfter.toISOString());
+        const dayAfterKey = this.getDateKey(formatLocalDate(dayAfter));
 
         if (dateKey === todayKey) return "今天";
         if (dateKey === tomorrowKey) return "明天";
