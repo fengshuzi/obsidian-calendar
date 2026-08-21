@@ -118,16 +118,8 @@ class CalendarSettingTab extends PluginSettingTab {
     const colorsContainer = containerEl.createDiv();
     colorsContainer.createEl("p", { text: "加载日历中...", cls: "calendar-settings-hint" });
 
-    void this.plugin.storage.getCalendars().then(({ calendars, permission }) => {
+    void this.plugin.storage.getCalendars().then((calendars) => {
       colorsContainer.empty();
-      if (permission !== "authorized") {
-        colorsContainer.createEl("p", {
-          text: permission === "denied"
-            ? "未授权访问日历。请在“系统设置 → 隐私与安全性 → 日历”中允许 Obsidian 访问。"
-            : "无法读取日历，请检查系统权限。",
-        });
-        return;
-      }
       if (calendars.length === 0) {
         colorsContainer.createEl("p", { text: "未找到日历" });
         return;

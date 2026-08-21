@@ -10,7 +10,6 @@ import type CalendarPlugin from "../main";
 import type { CalendarEvent } from "../types";
 import { generateCalendarColor } from "../types";
 import { DateTimePickerModal } from "../components/DateTimePicker";
-import type { CalendarPermission } from "../storage";
 
 export const VIEW_TYPE_CALENDAR = "calendar-view";
 
@@ -152,6 +151,14 @@ export class CalendarView extends ItemView {
         this.calendarSelectRef.onchange = () => {
             this.updateCalendarColorDot();
         };
+        void this.plugin.storage.getCalendars().then((calendars) => {
+            if (!this.calendarSelectRef) return;
+            this.calendarSelectRef.empty();
+            for (const calendar of calendars) {
+                this.calendarSelectRef.createEl("option", { text: calendar, value: calendar });
+            }
+            this.resetCalendarSelection();
+        });
         this.timeButton = card.createEl("button", { cls: "calendar-editor-time" });
         setIcon(this.timeButton.createSpan("calendar-editor-time-icon"), "calendar-clock");
         this.timeTextEl = this.timeButton.createSpan("calendar-editor-time-text");
@@ -276,21 +283,6 @@ export class CalendarView extends ItemView {
         this.calendarColorDot.style.background = this.getCalendarColor(calendar);
     }
 
-    private updateCalendarOptions(calendars: string[]): void {
-        if (!this.calendarSelectRef) return;
-        const selectedCalendar = this.calendarSelectRef.value;
-        this.calendarSelectRef.empty();
-        for (const calendar of calendars) {
-            this.calendarSelectRef.createEl("option", { text: calendar, value: calendar });
-        }
-        if (selectedCalendar && calendars.includes(selectedCalendar)) {
-            this.calendarSelectRef.value = selectedCalendar;
-        } else if (this.calendarSelectRef.options.length > 0) {
-            this.calendarSelectRef.selectedIndex = 0;
-        }
-        this.updateCalendarColorDot();
-    }
-
     private updateInspectorTime(): void {
         if (!this.timeTextEl || !this.draftStart || !this.draftEnd) return;
         this.timeTextEl.setText(`${this.formatDateLong(this.draftStart)}  ${this.formatTime(this.draftStart.toISOString())} – ${this.formatTime(this.draftEnd.toISOString())}`);
@@ -352,55 +344,27 @@ export class CalendarView extends ItemView {
         this.calendarContainer = container.createDiv("calendar-main-container");
         this.calendarContainer.createDiv({ text: "加载中...", cls: "calendar-loading" });
 
-        void this.plugin.storage.getEvents().then(({ events, calendars, permission }) => {
+        void this.plugin.storage.getEvents().then(({ events }) => {
             if (!this.calendarContainer) return;
             this.calendarContainer.empty();
-            this.renderCalendarContent(events, calendars, permission, this.calendarContainer);
+            this.renderCalendarContent(events, this.calendarContainer);
         });
     }
 
     private async loadAndRender(): Promise<void> {
-        const { events, calendars, permission } = await this.plugin.storage.getEvents();
-        this.renderCalendarContent(events, calendars, permission);
+        const { events } = await this.plugin.storage.getEvents();
+        this.renderCalendarContent(events);
     }
 
     private renderCalendarContent(
         events: Record<string, CalendarEvent[]>,
-        calendars: string[],
-        permission: CalendarPermission,
         container?: HTMLElement,
     ): void {
         const calendarContainer = container || this.calendarContainer;
         if (!calendarContainer) return;
 
         calendarContainer.empty();
-        this.updateCalendarOptions(permission === "authorized" ? calendars : []);
-        if (permission !== "authorized") {
-            this.renderPermissionState(calendarContainer, permission);
-            return;
-        }
         this.renderDayView(calendarContainer, events);
-    }
-
-    private renderPermissionState(container: HTMLElement, permission: CalendarPermission): void {
-        const state = container.createDiv("calendar-permission-state");
-        const icon = state.createDiv("calendar-permission-icon");
-        setIcon(icon, permission === "denied" ? "shield-alert" : "circle-alert");
-        state.createDiv({
-            cls: "calendar-permission-title",
-            text: permission === "denied" ? "未授权访问日历" : "无法读取日历",
-        });
-        state.createDiv({
-            cls: "calendar-permission-desc",
-            text: permission === "denied"
-                ? "请在“系统设置 → 隐私与安全性 → 日历”中允许 Obsidian 访问，然后重新检查。"
-                : "请检查系统权限后重新检查。",
-        });
-        const retryBtn = state.createEl("button", { cls: "calendar-permission-retry", text: "重新检查" });
-        setIcon(retryBtn.createSpan(), "refresh-cw");
-        retryBtn.onclick = () => {
-            void this.loadAndRender();
-        };
     }
 
     private renderDayView(
