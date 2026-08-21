@@ -1,5 +1,7 @@
 import { execFile } from "child_process";
 import { Notice, Platform } from "obsidian";
+import { parseCalendarResult } from "./calendar-result";
+import type { CalendarLoadResult } from "./calendar-result";
 import type { CalendarEvent } from "./types";
 
 function formatLocalDate(date: Date): string {
@@ -24,11 +26,6 @@ const execAsync = (
             resolve(typeof stdout === "string" ? stdout : String(stdout));
         });
     });
-};
-
-type EventsResult = {
-  events: Record<string, CalendarEvent[]>;
-  calendars: string[];
 };
 
 export class CalendarStorage {
@@ -70,65 +67,6 @@ export class CalendarStorage {
       .replace(/\n/g, "\\n");
   }
 
-  private parseCalendarEvent(
-    value: unknown,
-    calendar: string,
-  ): CalendarEvent | null {
-    if (!value || typeof value !== "object") return null;
-    const event = value as Record<string, unknown>;
-    if (
-      typeof event.id !== "string" ||
-      typeof event.title !== "string" ||
-      typeof event.start !== "string" ||
-      typeof event.end !== "string" ||
-      typeof event.allDay !== "boolean"
-    ) {
-      return null;
-    }
-
-    return {
-      id: event.id,
-      title: event.title,
-      calendar,
-      start: event.start,
-      end: event.end,
-      allDay: event.allDay,
-      location: typeof event.location === "string" ? event.location : undefined,
-      notes: typeof event.notes === "string" ? event.notes : undefined,
-    };
-  }
-
-  private parseEventsResult(result: string): EventsResult {
-    const parsed: unknown = JSON.parse(result);
-    if (!parsed || typeof parsed !== "object")
-      return { events: {}, calendars: [] };
-
-    const data = parsed as Record<string, unknown>;
-    const calendars = Array.isArray(data.calendars)
-      ? data.calendars.filter(
-          (calendar): calendar is string => typeof calendar === "string",
-        )
-      : [];
-    const events: Record<string, CalendarEvent[]> = {};
-
-    if (data.events && typeof data.events === "object") {
-      for (const [calendar, calendarEvents] of Object.entries(data.events)) {
-        if (Array.isArray(calendarEvents)) {
-          events[calendar] = calendarEvents.reduce<CalendarEvent[]>(
-            (validEvents, event) => {
-              const calendarEvent = this.parseCalendarEvent(event, calendar);
-              if (calendarEvent) validEvents.push(calendarEvent);
-              return validEvents;
-            },
-            [],
-          );
-        }
-      }
-    }
-
-    return { events, calendars };
-  }
-
   private parseCalendars(result: string): string[] {
     const parsed: unknown = JSON.parse(result);
     if (!Array.isArray(parsed)) return [];
@@ -137,27 +75,15 @@ export class CalendarStorage {
     );
   }
 
-  async getEvents(): Promise<{
-    events: Record<string, CalendarEvent[]>;
-    calendars: string[];
-  }> {
-    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status!=3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var now=$.NSDate.date;var start=$.NSCalendar.currentCalendar.startOfDayForDate(now);var end=start.dateByAddingTimeInterval(3*24*60*60);var cals=store.calendarsForEntityType(0);var calNames=[];var events={};for(var i=0;i<cals.count;i++){var cal=cals.objectAtIndex(i);var name=ObjC.unwrap(cal.title);calNames.push(name);}var predicate=store.predicateForEventsWithStartDateEndDateCalendars(start,end,cals);var allEvents=store.eventsMatchingPredicate(predicate);for(var i=0;i<allEvents.count;i++){var e=allEvents.objectAtIndex(i);var calName=ObjC.unwrap(e.calendar.title);if(!events[calName])events[calName]=[];events[calName].push({title:ObjC.unwrap(e.title),id:ObjC.unwrap(e.calendarItemIdentifier),start:ObjC.unwrap(e.startDate).toISOString(),end:ObjC.unwrap(e.endDate).toISOString(),allDay:e.isAllDay,location:e.location?ObjC.unwrap(e.location):null,notes:e.notes?ObjC.unwrap(e.notes):null});}for(var k in events){events[k].sort(function(a,b){return new Date(a.start)-new Date(b.start);});}JSON.stringify({events:events,calendars:calNames});`;
+  async getEvents(): Promise<CalendarLoadResult> {
+    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=Number($.EKEventStore.authorizationStatusForEntityType(0));var calNames=[];var events={};if(status!==2){if(status!==3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var now=$.NSDate.date;var start=$.NSCalendar.currentCalendar.startOfDayForDate(now);var end=start.dateByAddingTimeInterval(3*24*60*60);var cals=store.calendarsForEntityType(0);for(var i=0;i<cals.count;i++){var cal=cals.objectAtIndex(i);var name=ObjC.unwrap(cal.title);calNames.push(name);}var predicate=store.predicateForEventsWithStartDateEndDateCalendars(start,end,cals);var allEvents=store.eventsMatchingPredicate(predicate);for(var i=0;i<allEvents.count;i++){var e=allEvents.objectAtIndex(i);var calName=ObjC.unwrap(e.calendar.title);if(!events[calName])events[calName]=[];events[calName].push({title:ObjC.unwrap(e.title),id:ObjC.unwrap(e.calendarItemIdentifier),start:ObjC.unwrap(e.startDate).toISOString(),end:ObjC.unwrap(e.endDate).toISOString(),allDay:e.isAllDay,location:e.location?ObjC.unwrap(e.location):null,notes:e.notes?ObjC.unwrap(e.notes):null});}for(var k in events){events[k].sort(function(a,b){return new Date(a.start)-new Date(b.start);});}}JSON.stringify({authorizationStatus:status,events:events,calendars:calNames});`;
 
     const result = await this.runJXA(script);
-    if (!result) {
-      return { events: {}, calendars: [] };
-    }
-
-    try {
-      return this.parseEventsResult(result);
-    } catch (err) {
-      console.warn("[Calendar] getEvents parse error:", err);
-      return { events: {}, calendars: [] };
-    }
+    return parseCalendarResult(result);
   }
 
   async getCalendars(): Promise<string[]> {
-    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status!=3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var cals=store.calendarsForEntityType(0);var result=[];for(var i=0;i<cals.count;i++){result.push(ObjC.unwrap(cals.objectAtIndex(i).title));}JSON.stringify(result);`;
+    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=Number($.EKEventStore.authorizationStatusForEntityType(0));var result=[];if(status!==2){if(status!==3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var cals=store.calendarsForEntityType(0);for(var i=0;i<cals.count;i++){result.push(ObjC.unwrap(cals.objectAtIndex(i).title));}}JSON.stringify(result);`;
     const result = await this.runJXA(script);
     if (!result) return [];
 

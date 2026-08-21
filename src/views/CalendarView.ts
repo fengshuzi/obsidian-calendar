@@ -7,6 +7,8 @@ import {
     Notice,
 } from "obsidian";
 import type CalendarPlugin from "../main";
+import { CALENDAR_AUTHORIZATION_INSTRUCTIONS } from "../calendar-result";
+import type { CalendarLoadResult } from "../calendar-result";
 import type { CalendarEvent } from "../types";
 import { generateCalendarColor } from "../types";
 import { DateTimePickerModal } from "../components/DateTimePicker";
@@ -344,27 +346,36 @@ export class CalendarView extends ItemView {
         this.calendarContainer = container.createDiv("calendar-main-container");
         this.calendarContainer.createDiv({ text: "加载中...", cls: "calendar-loading" });
 
-        void this.plugin.storage.getEvents().then(({ events }) => {
+        void this.plugin.storage.getEvents().then((result) => {
             if (!this.calendarContainer) return;
             this.calendarContainer.empty();
-            this.renderCalendarContent(events, this.calendarContainer);
+            this.renderCalendarContent(result, this.calendarContainer);
         });
     }
 
     private async loadAndRender(): Promise<void> {
-        const { events } = await this.plugin.storage.getEvents();
-        this.renderCalendarContent(events);
+        const result = await this.plugin.storage.getEvents();
+        this.renderCalendarContent(result);
     }
 
     private renderCalendarContent(
-        events: Record<string, CalendarEvent[]>,
+        result: CalendarLoadResult,
         container?: HTMLElement,
     ): void {
         const calendarContainer = container || this.calendarContainer;
         if (!calendarContainer) return;
 
         calendarContainer.empty();
-        this.renderDayView(calendarContainer, events);
+        if (result.authorization !== "full-access") {
+            calendarContainer.createDiv({
+                cls: "calendar-loading",
+                text: result.authorization === "denied"
+                    ? `未授权访问日历。${CALENDAR_AUTHORIZATION_INSTRUCTIONS}`
+                    : `无法读取日历。${CALENDAR_AUTHORIZATION_INSTRUCTIONS}`,
+            });
+            return;
+        }
+        this.renderDayView(calendarContainer, result.events);
     }
 
     private renderDayView(

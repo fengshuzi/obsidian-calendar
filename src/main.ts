@@ -1,6 +1,7 @@
 import { App, Notice, Platform, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { CalendarStorage } from "./storage";
 import { CalendarView, VIEW_TYPE_CALENDAR } from "./views/CalendarView";
+import { CALENDAR_AUTHORIZATION_INSTRUCTIONS } from "./calendar-result";
 import { DEFAULT_SETTINGS } from "./types";
 import type { CalendarSettings } from "./types";
 import { generateCalendarColor } from "./types";
@@ -99,6 +100,10 @@ class CalendarSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("系统授权")
+      .setDesc(CALENDAR_AUTHORIZATION_INSTRUCTIONS);
 
     new Setting(containerEl)
       .setName("显示凌晨时段")
