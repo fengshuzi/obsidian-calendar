@@ -26,9 +26,17 @@ const execAsync = (
     });
 };
 
+export type CalendarPermission = "authorized" | "denied" | "unknown";
+
 type EventsResult = {
   events: Record<string, CalendarEvent[]>;
   calendars: string[];
+  permission: CalendarPermission;
+};
+
+type CalendarsResult = {
+  calendars: string[];
+  permission: CalendarPermission;
 };
 
 export class CalendarStorage {
@@ -98,12 +106,19 @@ export class CalendarStorage {
     };
   }
 
+  private parsePermission(status: unknown): CalendarPermission {
+    if (status === 3 || status === 4) return "authorized";
+    if (status === 1 || status === 2 || status === 5) return "denied";
+    return "unknown";
+  }
+
   private parseEventsResult(result: string): EventsResult {
     const parsed: unknown = JSON.parse(result);
     if (!parsed || typeof parsed !== "object")
-      return { events: {}, calendars: [] };
+      return { events: {}, calendars: [], permission: "unknown" };
 
     const data = parsed as Record<string, unknown>;
+    const permission = this.parsePermission(data.authorizationStatus);
     const calendars = Array.isArray(data.calendars)
       ? data.calendars.filter(
           (calendar): calendar is string => typeof calendar === "string",
@@ -126,45 +141,51 @@ export class CalendarStorage {
       }
     }
 
-    return { events, calendars };
+    return { events, calendars, permission };
   }
 
-  private parseCalendars(result: string): string[] {
+  private parseCalendars(result: string): CalendarsResult {
     const parsed: unknown = JSON.parse(result);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (calendar): calendar is string => typeof calendar === "string",
-    );
+    if (!parsed || typeof parsed !== "object") {
+      return { calendars: [], permission: "unknown" };
+    }
+    const data = parsed as Record<string, unknown>;
+    const calendars = Array.isArray(data.calendars)
+      ? data.calendars.filter(
+          (calendar): calendar is string => typeof calendar === "string",
+        )
+      : [];
+    return {
+      calendars,
+      permission: this.parsePermission(data.authorizationStatus),
+    };
   }
 
-  async getEvents(): Promise<{
-    events: Record<string, CalendarEvent[]>;
-    calendars: string[];
-  }> {
-    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status!=3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var now=$.NSDate.date;var start=$.NSCalendar.currentCalendar.startOfDayForDate(now);var end=start.dateByAddingTimeInterval(3*24*60*60);var cals=store.calendarsForEntityType(0);var calNames=[];var events={};for(var i=0;i<cals.count;i++){var cal=cals.objectAtIndex(i);var name=ObjC.unwrap(cal.title);calNames.push(name);}var predicate=store.predicateForEventsWithStartDateEndDateCalendars(start,end,cals);var allEvents=store.eventsMatchingPredicate(predicate);for(var i=0;i<allEvents.count;i++){var e=allEvents.objectAtIndex(i);var calName=ObjC.unwrap(e.calendar.title);if(!events[calName])events[calName]=[];events[calName].push({title:ObjC.unwrap(e.title),id:ObjC.unwrap(e.calendarItemIdentifier),start:ObjC.unwrap(e.startDate).toISOString(),end:ObjC.unwrap(e.endDate).toISOString(),allDay:e.isAllDay,location:e.location?ObjC.unwrap(e.location):null,notes:e.notes?ObjC.unwrap(e.notes):null});}for(var k in events){events[k].sort(function(a,b){return new Date(a.start)-new Date(b.start);});}JSON.stringify({events:events,calendars:calNames});`;
+  async getEvents(): Promise<EventsResult> {
+    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status===0){store.requestAccessToEntityTypeCompletion(0,null);delay(2);status=$.EKEventStore.authorizationStatusForEntityType(0);}var authorized=status===3||status===4;var calNames=[];var events={};if(authorized){var now=$.NSDate.date;var start=$.NSCalendar.currentCalendar.startOfDayForDate(now);var end=start.dateByAddingTimeInterval(3*24*60*60);var cals=store.calendarsForEntityType(0);for(var i=0;i<cals.count;i++){var cal=cals.objectAtIndex(i);var name=ObjC.unwrap(cal.title);calNames.push(name);}var predicate=store.predicateForEventsWithStartDateEndDateCalendars(start,end,cals);var allEvents=store.eventsMatchingPredicate(predicate);for(var i=0;i<allEvents.count;i++){var e=allEvents.objectAtIndex(i);var calName=ObjC.unwrap(e.calendar.title);if(!events[calName])events[calName]=[];events[calName].push({title:ObjC.unwrap(e.title),id:ObjC.unwrap(e.calendarItemIdentifier),start:ObjC.unwrap(e.startDate).toISOString(),end:ObjC.unwrap(e.endDate).toISOString(),allDay:e.isAllDay,location:e.location?ObjC.unwrap(e.location):null,notes:e.notes?ObjC.unwrap(e.notes):null});}for(var k in events){events[k].sort(function(a,b){return new Date(a.start)-new Date(b.start);});}}JSON.stringify({authorizationStatus:Number(status),events:events,calendars:calNames});`;
 
     const result = await this.runJXA(script);
     if (!result) {
-      return { events: {}, calendars: [] };
+      return { events: {}, calendars: [], permission: "unknown" };
     }
 
     try {
       return this.parseEventsResult(result);
     } catch (err) {
       console.warn("[Calendar] getEvents parse error:", err);
-      return { events: {}, calendars: [] };
+      return { events: {}, calendars: [], permission: "unknown" };
     }
   }
 
-  async getCalendars(): Promise<string[]> {
-    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status!=3){store.requestAccessToEntityTypeCompletion(0,null);delay(2);}var cals=store.calendarsForEntityType(0);var result=[];for(var i=0;i<cals.count;i++){result.push(ObjC.unwrap(cals.objectAtIndex(i).title));}JSON.stringify(result);`;
+  async getCalendars(): Promise<CalendarsResult> {
+    const script = `ObjC.import("EventKit");var store=$.EKEventStore.alloc.init;var status=$.EKEventStore.authorizationStatusForEntityType(0);if(status===0){store.requestAccessToEntityTypeCompletion(0,null);delay(2);status=$.EKEventStore.authorizationStatusForEntityType(0);}var authorized=status===3||status===4;var result=[];if(authorized){var cals=store.calendarsForEntityType(0);for(var i=0;i<cals.count;i++){result.push(ObjC.unwrap(cals.objectAtIndex(i).title));}}JSON.stringify({authorizationStatus:Number(status),calendars:result});`;
     const result = await this.runJXA(script);
-    if (!result) return [];
+    if (!result) return { calendars: [], permission: "unknown" };
 
     try {
       return this.parseCalendars(result);
     } catch {
-      return [];
+      return { calendars: [], permission: "unknown" };
     }
   }
 
